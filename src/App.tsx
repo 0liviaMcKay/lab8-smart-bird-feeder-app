@@ -144,6 +144,12 @@ export default function App() {
       if (!config.liveKitUrl.trim()) {
         setLiveKitStatus(config.demoMode ? 'connected' : 'idle');
         setLiveKitMessage(config.demoMode ? 'Demo mode active. Use the media browser to preview sample footage.' : 'Configure LiveKit to view the feeder stream.');
+
+        // Demo mode: attach a sample video to the live panel so the demo is visible without LiveKit
+        if (config.demoMode && liveVideoRef.current) {
+          liveVideoRef.current.src = 'https://www.w3schools.com/html/mov_bbb.mp4';
+          liveVideoRef.current.play().catch(() => undefined);
+        }
         return;
       }
 
@@ -192,6 +198,78 @@ export default function App() {
 
   async function sendCommand(command: BirdFeederCommand) {
     const client = mqttClientRef.current;
+    // Demo mode simulation: let the app simulate device responses without requiring Lab 7 backend
+    if (config.demoMode) {
+      setBusyCommand(command);
+      setLogs((current: LogEntry[]) => [createLog('Command sent (demo)', `${command} (simulated)`), ...current].slice(0, 8));
+
+      if (command === 'capture_photo') {
+        // simulate camera capture and immediate event
+        const simulatedUrl = 'https://images.unsplash.com/photo-1452570053594-1b985d6ea890?auto=format&fit=crop&w=1200&q=80';
+        const photo: MediaItem = {
+          id: `demo-photo-${Date.now()}`,
+          kind: 'photo',
+          title: 'Simulated capture',
+          url: simulatedUrl,
+          thumbnailUrl: simulatedUrl,
+          createdAt: new Date().toISOString(),
+        };
+        setTimeout(() => {
+          setPhotos((current: MediaItem[]) => [photo, ...current].slice(0, 12));
+          setLogs((current: LogEntry[]) => [createLog('Device event (demo)', 'Photo captured and uploaded to cloud (simulated)'), ...current].slice(0, 8));
+          setBusyCommand(null);
+        }, 800);
+        return;
+      }
+
+      if (command === 'start_video_recording') {
+        setLogs((current: LogEntry[]) => [createLog('Device event (demo)', 'Recording started (simulated)'), ...current].slice(0, 8));
+        // create a simulated clip after a short delay
+        setTimeout(() => {
+          const video: MediaItem = {
+            id: `demo-video-${Date.now()}`,
+            kind: 'video',
+            title: 'Simulated recording clip',
+            url: 'https://www.w3schools.com/html/mov_bbb.mp4',
+            thumbnailUrl: 'https://images.unsplash.com/photo-1444212477490-ca407925329e?auto=format&fit=crop&w=800&q=80',
+            durationSeconds: 10,
+            createdAt: new Date().toISOString(),
+          };
+          setVideos((current: MediaItem[]) => [video, ...current].slice(0, 12));
+          setLogs((current: LogEntry[]) => [createLog('Device event (demo)', 'Recording finished and uploaded (simulated)'), ...current].slice(0, 8));
+          setBusyCommand(null);
+        }, 3500);
+        return;
+      }
+
+      if (command === 'stop_video_recording') {
+        setLogs((current: LogEntry[]) => [createLog('Device event (demo)', 'Recording stopped (simulated)'), ...current].slice(0, 8));
+        setBusyCommand(null);
+        return;
+      }
+
+      if (command === 'start_live_stream') {
+        setLogs((current: LogEntry[]) => [createLog('Device event (demo)', 'Live stream started (simulated)'), ...current].slice(0, 8));
+        if (liveVideoRef.current) {
+          liveVideoRef.current.src = 'https://www.w3schools.com/html/mov_bbb.mp4';
+          liveVideoRef.current.play().catch(() => undefined);
+        }
+        setBusyCommand(null);
+        return;
+      }
+
+      if (command === 'stop_live_stream') {
+        setLogs((current: LogEntry[]) => [createLog('Device event (demo)', 'Live stream stopped (simulated)'), ...current].slice(0, 8));
+        if (liveVideoRef.current) {
+          liveVideoRef.current.pause();
+          liveVideoRef.current.removeAttribute('src');
+        }
+        setBusyCommand(null);
+        return;
+      }
+      return;
+    }
+
     if (!client || mqttStatus !== 'connected') {
       setLogs((current: LogEntry[]) => [createLog('Command blocked', 'MQTT is not connected.'), ...current].slice(0, 8));
       return;
